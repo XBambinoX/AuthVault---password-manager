@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using PasswordManager.Application.Security;
 using PasswordManager.Application.Settings;
 using PasswordManager.Application.Vault;
 using PasswordManager.Infrastructure.Settings;
@@ -16,10 +17,12 @@ namespace PasswordManager.Controllers
     {
         SettingsService _settingsService;
         IVaultSettingsService _vaultSettingsService;
-        public SettingsController(IVaultSettingsService vaultSettingsService,SettingsService settingsService)
+        ISessionEncryptionService _sessionEncryptionService;
+        public SettingsController(IVaultSettingsService vaultSettingsService, SettingsService settingsService, ISessionEncryptionService sessionEncryptionService)
         {
             _vaultSettingsService = vaultSettingsService;
             _settingsService = settingsService;
+            _sessionEncryptionService = sessionEncryptionService;
         }
 
         [HttpGet("Settings")]
@@ -44,14 +47,30 @@ namespace PasswordManager.Controllers
         [HttpGet("Settings/2FA/EmailVerification")]
         public async Task<IActionResult> GetEmailVerification(string token)
         {
-            bool IsValidToken = await _settingsService.Verify2FAToken(token);
-            if (!IsValidToken)
+            bool isValidToken = await _settingsService.Verify2FAToken(token);
+            if (!isValidToken)
             {
                 return View("~/Views/Token/InvalidToken.cshtml");
             }
 
-            var email = TempData["email"] as string;
-            await _settingsService.Add2FAEmailAsync(token, email!);
+            return View("~/Views/Token/ConfirmEmail.cshtml", token);
+        }
+
+        [HttpPost("Settings/2FA/EmailVerification")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PostEmailVerification(string token)
+        {
+            bool isValidToken = await _settingsService.Verify2FAToken(token);
+            if (!isValidToken)
+            {
+                return View("~/Views/Token/InvalidToken.cshtml");
+            }
+
+            bool success = await _settingsService.Add2FAEmailAsync(token);
+            if (!success)
+            {
+                return View("~/Views/Token/InvalidToken.cshtml");
+            }
 
             return View("~/Views/Token/Success.cshtml");
         }
@@ -69,6 +88,7 @@ namespace PasswordManager.Controllers
         }
 
         [HttpPost("Settings/2FA/Email")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PostSendCode(FAuthenticationEmailViewModel model)
         {
             if (!ModelState.IsValid)
@@ -77,9 +97,9 @@ namespace PasswordManager.Controllers
             }
 
             var userId = GetUserID();
-            await _settingsService.Add2FAAsync(userId,model.Email);
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _settingsService.Add2FAAsync(userId, model.Email, baseUrl);
 
-            TempData["email"] = model.Email;
             return RedirectToAction("Get2FAEmailVerificationLinkSent");
         }
 
@@ -106,15 +126,24 @@ namespace PasswordManager.Controllers
 
 
         [HttpPost("Settings/ChangeMasterPassword")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PostChangeMasterPassword(ChangeMasterPasswordViewModel model)
         {
             if (!ModelState.IsValid)
             {
-                return View("ChangeMasterPassword",model);
+                return View("ChangeMasterPassword", model);
             }
 
             int userId = GetUserID();
-            await _settingsService.ChangeMasterPassword(userId,model.NewPassword);
+            byte[]? newKey = await _settingsService.ChangeMasterPassword(userId, model.CurrentPassword, model.NewPassword);
+
+            if (newKey == null)
+            {
+                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is incorrect");
+                return View("ChangeMasterPassword", model);
+            }
+
+            _sessionEncryptionService.SetEncryptionKey(userId, newKey);
 
             return RedirectToAction("GetSettings");
         }

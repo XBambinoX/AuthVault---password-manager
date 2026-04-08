@@ -22,7 +22,6 @@ namespace PasswordManager.Controllers
         [HttpPost("ForgotPassword")]
         public async Task<IActionResult> PostForgotPassword(ForgotPasswordViewModel model)
         {
-            Console.WriteLine("Here");
             if (!ModelState.IsValid)
                 return View(model);
 

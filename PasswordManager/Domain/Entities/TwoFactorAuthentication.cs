@@ -8,6 +8,7 @@
         public User User { get; set; } = null!;
 
         public string? Email { get; set; }
+        public string? PendingEmail { get; set; }
         public string? Token { get; set; }
         public DateTime? TokenExpiresAt { get; set; }
         public bool IsEnabled { get; set; } = false;
