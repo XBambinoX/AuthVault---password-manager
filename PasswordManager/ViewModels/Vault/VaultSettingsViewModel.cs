@@ -34,6 +34,9 @@ namespace PasswordManager.ViewModels.Vault
     {
         public VaultSidebarViewModel? Sidebar { get; set; }
 
+        [Required(ErrorMessage = "Enter current password")]
+        public string CurrentPassword { get; set; } = null!;
+
         [Required(ErrorMessage = "Enter password")]
         [MinLength(8,ErrorMessage = "Minimum length is 8")]
         public string NewPassword { get; set; } = null!;

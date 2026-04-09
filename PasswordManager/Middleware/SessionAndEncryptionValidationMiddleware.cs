@@ -63,8 +63,6 @@ namespace PasswordManager.Middleware
 
         private async Task LogoutUser(HttpContext context, int userId)
         {
-            context.Session.Remove($"EncryptionKey_{userId}");
-
             context.Session.Clear();
 
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

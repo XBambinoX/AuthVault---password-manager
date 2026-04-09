@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PasswordManager.Application.Account.ForgotPassword;
 using PasswordManager.ViewModels;
 
@@ -20,9 +21,10 @@ namespace PasswordManager.Controllers
         }
 
         [HttpPost("ForgotPassword")]
+        [ValidateAntiForgeryToken]
+        [EnableRateLimiting("auth")]
         public async Task<IActionResult> PostForgotPassword(ForgotPasswordViewModel model)
         {
-            Console.WriteLine("Here");
             if (!ModelState.IsValid)
                 return View(model);
 
@@ -30,7 +32,7 @@ namespace PasswordManager.Controllers
             await _resetPasswordService.CreateResetTokenAsync(new ForgotPasswordDto
             {
                 Email = model.Email,
-                BaseUrl = baseUrl
+                BaseUrl = $"{Request.Scheme}://{Request.Host}"
             });
 
             ModelState.AddModelError(nameof(model.Email), "If your email address has been confirmed and entered correctly, " +

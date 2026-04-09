@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using PasswordManager.Infrastructure.Email;
 using System.Linq.Expressions;
+using System.Security.Cryptography;
 
 namespace PasswordManager.Infrastructure.Security
 {
@@ -22,7 +23,7 @@ namespace PasswordManager.Infrastructure.Security
 
             do
             {
-                token = Guid.NewGuid().ToString("N");
+                token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             }
             while (await dbSet.AnyAsync(entity =>
                 EF.Property<string>(entity, ((MemberExpression)tokenSelector.Body).Member.Name) == token

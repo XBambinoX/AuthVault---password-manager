@@ -19,31 +19,28 @@ namespace PasswordManager.Infrastructure.Vault
             var loginItem = await _db.LoginData
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.Id == itemId);
 
-            _db.LoginData.Remove(loginItem!);
+            if (loginItem == null) return;
+            _db.LoginData.Remove(loginItem);
             await _db.SaveChangesAsync();
         }
 
-        
         public async Task DeleteCardItemAsync(int userId, int itemId)
         {
-
             var cardItem = await _db.CardData
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.Id == itemId);
 
-
-            _db.CardData.Remove(cardItem!);
+            if (cardItem == null) return;
+            _db.CardData.Remove(cardItem);
             await _db.SaveChangesAsync();
         }
 
-
         public async Task DeleteNoteItemAsync(int userId, int itemId)
         {
-
             var noteItem = await _db.NoteData
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.Id == itemId);
 
-
-            _db.NoteData.Remove(noteItem!);
+            if (noteItem == null) return;
+            _db.NoteData.Remove(noteItem);
             await _db.SaveChangesAsync();
         }
     }

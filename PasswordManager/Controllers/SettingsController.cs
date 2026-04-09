@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PasswordManager.Application.Security;
 using PasswordManager.Application.Settings;
 using PasswordManager.Application.Vault;
 using PasswordManager.Infrastructure.Settings;
@@ -11,15 +13,18 @@ using System.Text;
 
 namespace PasswordManager.Controllers
 {
+    [Authorize]
     [Route("Vault")]
     public class SettingsController : Controller
     {
         SettingsService _settingsService;
         IVaultSettingsService _vaultSettingsService;
-        public SettingsController(IVaultSettingsService vaultSettingsService,SettingsService settingsService)
+        ISessionEncryptionService _sessionEncryptionService;
+        public SettingsController(IVaultSettingsService vaultSettingsService, SettingsService settingsService, ISessionEncryptionService sessionEncryptionService)
         {
             _vaultSettingsService = vaultSettingsService;
             _settingsService = settingsService;
+            _sessionEncryptionService = sessionEncryptionService;
         }
 
         [HttpGet("Settings")]
@@ -27,6 +32,9 @@ namespace PasswordManager.Controllers
         {
             var userId = GetUserID();
             var model = await _vaultSettingsService.GetSettingsDataAsync(userId);
+
+            if (model == null)
+                return RedirectToAction("GetLogin", "Login");
 
             return View("Settings", model);
         }
@@ -44,14 +52,30 @@ namespace PasswordManager.Controllers
         [HttpGet("Settings/2FA/EmailVerification")]
         public async Task<IActionResult> GetEmailVerification(string token)
         {
-            bool IsValidToken = await _settingsService.Verify2FAToken(token);
-            if (!IsValidToken)
+            bool isValidToken = await _settingsService.Verify2FAToken(token);
+            if (!isValidToken)
             {
                 return View("~/Views/Token/InvalidToken.cshtml");
             }
 
-            var email = TempData["email"] as string;
-            await _settingsService.Add2FAEmailAsync(token, email!);
+            return View("~/Views/Token/ConfirmEmail.cshtml", token);
+        }
+
+        [HttpPost("Settings/2FA/EmailVerification")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PostEmailVerification(string token)
+        {
+            bool isValidToken = await _settingsService.Verify2FAToken(token);
+            if (!isValidToken)
+            {
+                return View("~/Views/Token/InvalidToken.cshtml");
+            }
+
+            bool success = await _settingsService.Add2FAEmailAsync(token);
+            if (!success)
+            {
+                return View("~/Views/Token/InvalidToken.cshtml");
+            }
 
             return View("~/Views/Token/Success.cshtml");
         }
@@ -63,12 +87,14 @@ namespace PasswordManager.Controllers
         }
 
         [HttpPost("Settings/EmailChange")]
+        [ValidateAntiForgeryToken]
         public IActionResult PostFAEmailChange()
         {
             return RedirectToAction("Get2FAEmail");
         }
 
         [HttpPost("Settings/2FA/Email")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PostSendCode(FAuthenticationEmailViewModel model)
         {
             if (!ModelState.IsValid)
@@ -78,9 +104,8 @@ namespace PasswordManager.Controllers
 
             var userId = GetUserID();
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            await _settingsService.Add2FAAsync(userId,model.Email,baseUrl);
+            await _settingsService.Add2FAAsync(userId, model.Email, baseUrl);
 
-            TempData["email"] = model.Email;
             return RedirectToAction("Get2FAEmailVerificationLinkSent");
         }
 
@@ -88,10 +113,10 @@ namespace PasswordManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Toggle2FA([FromBody] Toggle2FADto dto)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userId = GetUserID();
             await _settingsService.Set2FAStatement(userId, dto.IsEnabled);
 
-            return RedirectToAction("GetSettings");
+            return Ok(new { success = true });
         }
         #endregion
 
@@ -107,15 +132,24 @@ namespace PasswordManager.Controllers
 
 
         [HttpPost("Settings/ChangeMasterPassword")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PostChangeMasterPassword(ChangeMasterPasswordViewModel model)
         {
             if (!ModelState.IsValid)
             {
-                return View("ChangeMasterPassword",model);
+                return View("ChangeMasterPassword", model);
             }
 
             int userId = GetUserID();
-            await _settingsService.ChangeMasterPassword(userId,model.NewPassword);
+            byte[]? newKey = await _settingsService.ChangeMasterPassword(userId, model.CurrentPassword, model.NewPassword);
+
+            if (newKey == null)
+            {
+                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is incorrect");
+                return View("ChangeMasterPassword", model);
+            }
+
+            _sessionEncryptionService.SetEncryptionKey(userId, newKey);
 
             return RedirectToAction("GetSettings");
         }
@@ -132,6 +166,7 @@ namespace PasswordManager.Controllers
         }
 
         [HttpPost("Settings/DeleteAccount/Password")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PostDeleteAccountPassword(DeleteAccountViewModel model)
         {
             if (!ModelState.IsValid)
@@ -169,7 +204,7 @@ namespace PasswordManager.Controllers
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return RedirectToAction("Register", "Account");
             }
-            return View("Vault","Home");
+            return RedirectToAction("Home", "Vault");
         }
         #endregion
 
@@ -212,7 +247,9 @@ namespace PasswordManager.Controllers
 
         private int GetUserID()
         {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                throw new InvalidOperationException("Invalid user identifier in claims.");
+            return userId;
         }
     }
 }

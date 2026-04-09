@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PasswordManager.Application.Security;
 using PasswordManager.Data;
 using PasswordManager.Domain.Entities;
 using PasswordManager.Infrastructure.Security;
@@ -6,20 +7,22 @@ using System.Text;
 
 namespace PasswordManager.Infrastructure.Settings
 {
-   
-    public class SettingsService 
+
+    public class SettingsService
     {
         private readonly AppDbContext _db;
         private readonly IEncryptionService _encryptionService;
+        private readonly ISessionEncryptionService _sessionEncryptionService;
         private readonly TokenService _tokenService;
-        public SettingsService(AppDbContext db, IEncryptionService encryptionService,TokenService tokenService) 
+        public SettingsService(AppDbContext db, IEncryptionService encryptionService, ISessionEncryptionService sessionEncryptionService, TokenService tokenService)
         {
             _db = db;
             _encryptionService = encryptionService;
+            _sessionEncryptionService = sessionEncryptionService;
             _tokenService = tokenService;
         }
 
-        public async Task Add2FAAsync(int userId,string email,string baseURL)
+        public async Task Add2FAAsync(int userId, string email, string baseURL)
         {
             string token = await _tokenService.GenerateUniqueResetTokenAsync(_db.TwoFactorAuthentications, t => t.Token!);
             var expiresAt = DateTime.UtcNow.AddMinutes(5);
@@ -36,20 +39,20 @@ namespace PasswordManager.Infrastructure.Settings
                 {
                     UserId = userId,
                     Token = token,
-                    TokenExpiresAt = expiresAt
+                    TokenExpiresAt = expiresAt,
+                    PendingEmail = email
                 };
-
                 _db.TwoFactorAuthentications.Add(twoFa);
-                await _tokenService.SendTokenToEmailAsync(user!.Login, email, 5, $"{baseURL}/Vault/Settings/2FA/EmailVerification?token={token}");
             }
             else
             {
                 twoFa.Token = token;
                 twoFa.TokenExpiresAt = expiresAt;
-                await _tokenService.SendTokenToEmailAsync(user!.Login, email, 5, $"{baseURL}/Vault/Settings/2FA/EmailVerification?token={token}");
+                twoFa.PendingEmail = email;
             }
 
             await _db.SaveChangesAsync();
+            await _tokenService.SendTokenToEmailAsync(user!.Login, email, 5, $"{baseURL}/Vault/Settings/2FA/EmailVerification?token={token}");
         }
 
         public async Task<bool> Verify2FAToken(string token)
@@ -64,32 +67,27 @@ namespace PasswordManager.Infrastructure.Settings
             }
 
             if (record.TokenExpiresAt < DateTime.UtcNow)
-            {
                 return false;
-            }
-
-            if (record.Token != token)
-            {
-                return false;
-            }
 
             return true;
         }
 
-        public async Task Add2FAEmailAsync(string token, string email)
+        public async Task<bool> Add2FAEmailAsync(string token)
         {
             var twoFa = await _db.TwoFactorAuthentications
                 .FirstOrDefaultAsync(x => x.Token == token);
 
-            if (twoFa == null)
-                return;
+            if (twoFa == null || string.IsNullOrEmpty(twoFa.PendingEmail))
+                return false;
 
+            twoFa.Email = twoFa.PendingEmail;
+            twoFa.PendingEmail = null;
             twoFa.Token = null;
             twoFa.TokenExpiresAt = null;
-            twoFa.Email = email;
             twoFa.LinkedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
+            return true;
         }
 
         public async Task Set2FAStatement(int userId, bool statement)
@@ -107,27 +105,114 @@ namespace PasswordManager.Infrastructure.Settings
             await _db.SaveChangesAsync();
         }
 
-        public async Task ChangeMasterPassword(int userId,string password)
+        public async Task<byte[]?> ChangeMasterPassword(int userId, string currentPassword, string newPassword)
         {
-            var user = await _db.Users
-            .Where(u => u.Id == userId)
-            .FirstOrDefaultAsync();
-
-            if (user == null)
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                return;
+                var user = await _db.Users.Where(u => u.Id == userId).FirstOrDefaultAsync();
+                if (user == null)
+                    return null;
+
+                if (!PasswordHasher.VerifyPassword(currentPassword, user.AuthHash, user.AuthSalt))
+                    return null;
+
+                byte[] oldKey = _encryptionService.DeriveEncryptionKey(currentPassword, user.EncryptionSalt);
+
+                byte[] newAuthSalt = _encryptionService.GenerateSalt();
+                byte[] newEncryptionSalt = _encryptionService.GenerateSalt();
+                byte[] newAuthHash = _encryptionService.DeriveAuthHash(newPassword, newAuthSalt);
+                byte[] newKey = _encryptionService.DeriveEncryptionKey(newPassword, newEncryptionSalt);
+
+                // Re-encrypt LoginData
+                var logins = await _db.LoginData.Where(l => l.UserId == userId).ToListAsync();
+                foreach (var login in logins)
+                {
+                    if (!string.IsNullOrEmpty(login.LoginEncrypted) && !string.IsNullOrEmpty(login.LoginIV))
+                    {
+                        var plain = _encryptionService.Decrypt(login.LoginEncrypted, login.LoginIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        login.LoginEncrypted = enc.EncryptedData;
+                        login.LoginIV = enc.IV;
+                    }
+                    if (!string.IsNullOrEmpty(login.PasswordEncrypted) && !string.IsNullOrEmpty(login.PasswordIV))
+                    {
+                        var plain = _encryptionService.Decrypt(login.PasswordEncrypted, login.PasswordIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        login.PasswordEncrypted = enc.EncryptedData;
+                        login.PasswordIV = enc.IV;
+                    }
+                    if (!string.IsNullOrEmpty(login.NoteEncrypted) && !string.IsNullOrEmpty(login.NoteIV))
+                    {
+                        var plain = _encryptionService.Decrypt(login.NoteEncrypted, login.NoteIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        login.NoteEncrypted = enc.EncryptedData;
+                        login.NoteIV = enc.IV;
+                    }
+                }
+
+                // Re-encrypt CardData
+                var cards = await _db.CardData.Where(c => c.UserId == userId).ToListAsync();
+                foreach (var card in cards)
+                {
+                    if (!string.IsNullOrEmpty(card.CardNumberEncrypted) && !string.IsNullOrEmpty(card.CardNumberIV))
+                    {
+                        var plain = _encryptionService.Decrypt(card.CardNumberEncrypted, card.CardNumberIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        card.CardNumberEncrypted = enc.EncryptedData;
+                        card.CardNumberIV = enc.IV;
+                    }
+                    if (!string.IsNullOrEmpty(card.ExpireMonthEncrypted) && !string.IsNullOrEmpty(card.ExpireMonthIV))
+                    {
+                        var plain = _encryptionService.Decrypt(card.ExpireMonthEncrypted, card.ExpireMonthIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        card.ExpireMonthEncrypted = enc.EncryptedData;
+                        card.ExpireMonthIV = enc.IV;
+                    }
+                    if (!string.IsNullOrEmpty(card.ExpireYearEncrypted) && !string.IsNullOrEmpty(card.ExpireYearIV))
+                    {
+                        var plain = _encryptionService.Decrypt(card.ExpireYearEncrypted, card.ExpireYearIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        card.ExpireYearEncrypted = enc.EncryptedData;
+                        card.ExpireYearIV = enc.IV;
+                    }
+                    if (!string.IsNullOrEmpty(card.NoteEncrypted) && !string.IsNullOrEmpty(card.NoteIV))
+                    {
+                        var plain = _encryptionService.Decrypt(card.NoteEncrypted, card.NoteIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        card.NoteEncrypted = enc.EncryptedData;
+                        card.NoteIV = enc.IV;
+                    }
+                }
+
+                // Re-encrypt NoteData
+                var notes = await _db.NoteData.Where(n => n.UserId == userId).ToListAsync();
+                foreach (var note in notes)
+                {
+                    if (!string.IsNullOrEmpty(note.NoteEncrypted) && !string.IsNullOrEmpty(note.NoteIV))
+                    {
+                        var plain = _encryptionService.Decrypt(note.NoteEncrypted, note.NoteIV, oldKey);
+                        var enc = _encryptionService.Encrypt(plain, newKey);
+                        note.NoteEncrypted = enc.EncryptedData;
+                        note.NoteIV = enc.IV;
+                    }
+                }
+
+                user.AuthHash = newAuthHash;
+                user.AuthSalt = newAuthSalt;
+                user.EncryptionSalt = newEncryptionSalt;
+                user.PasswordLastChangedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return newKey;
             }
-
-            byte[] authSalt = _encryptionService.GenerateSalt();
-            byte[] encryptionSalt = _encryptionService.GenerateSalt();
-            byte[] authHash = _encryptionService.DeriveAuthHash(password, authSalt);
-
-            user.AuthHash = authHash;
-            user.AuthSalt = authSalt;
-            user.EncryptionSalt = encryptionSalt;
-            user.PasswordLastChangedAt = DateTime.UtcNow;
-
-            await _db.SaveChangesAsync();
+            catch
+            {
+                await transaction.RollbackAsync();
+                return null;
+            }
         }
 
         public async Task<bool> PasswordVerifyAsync(int userId, string password)
@@ -186,7 +271,6 @@ namespace PasswordManager.Infrastructure.Settings
         public async Task<bool> UpdateSessionTimeout(int timeoutMinutes, int userId)
         {
             bool success = true;
-            Console.WriteLine(timeoutMinutes);
             var allowedTimeouts = new[] { 15, 30, 60, 180 };
             if (!allowedTimeouts.Contains(timeoutMinutes))
             {
@@ -255,8 +339,11 @@ namespace PasswordManager.Infrastructure.Settings
 
                 sb.AppendLine();
 
+                var key = _sessionEncryptionService.GetEncryptionKey(userId);
+
                 // ===== LOGIN DATA =====
                 var logins = await _db.LoginData
+                    .Include(l => l.Folder)
                     .Where(l => l.UserId == userId)
                     .ToListAsync();
 
@@ -270,15 +357,17 @@ namespace PasswordManager.Infrastructure.Settings
                 {
                     sb.AppendLine($"--- Title: {login.Title}");
                     sb.AppendLine($"--- Folder: {login.Folder?.Name ?? "No folder"}");
-                    sb.AppendLine($"--- Login: "); //TODO
+                    sb.AppendLine($"--- Login: {(key != null ? _encryptionService.Decrypt(login.LoginEncrypted!, login.LoginIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Password: {(key != null ? _encryptionService.Decrypt(login.PasswordEncrypted!, login.PasswordIV!, key) : "[unavailable]")}");
                     sb.AppendLine($"--- WEB URL: {login.WebURL ?? "No URL"}");
                     sb.AppendLine($"--- Created at: {login.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Note: "); //TODO
+                    sb.AppendLine($"--- Note: {(key != null ? _encryptionService.Decrypt(login.NoteEncrypted!, login.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
                 // ===== CARDS =====
                 var cards = await _db.CardData
+                    .Include(c => c.Folder)
                     .Where(c => c.UserId == userId)
                     .ToListAsync();
 
@@ -293,16 +382,17 @@ namespace PasswordManager.Infrastructure.Settings
                     sb.AppendLine($"--- Title: {card.Title}");
                     sb.AppendLine($"--- Cardholder name: {card.CardholderName}");
                     sb.AppendLine($"--- Folder: {card.Folder?.Name ?? "No folder"}");
-                    sb.AppendLine($"--- Card number: "); //TODO
-                    sb.AppendLine($"--- Expire month: "); //TODO
-                    sb.AppendLine($"--- Expire year: "); //TODO
+                    sb.AppendLine($"--- Card number: {(key != null ? _encryptionService.Decrypt(card.CardNumberEncrypted!, card.CardNumberIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Expire month: {(key != null ? _encryptionService.Decrypt(card.ExpireMonthEncrypted!, card.ExpireMonthIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Expire year: {(key != null ? _encryptionService.Decrypt(card.ExpireYearEncrypted!, card.ExpireYearIV!, key) : "[unavailable]")}");
                     sb.AppendLine($"--- Created at: {card.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Note: "); //TODO
+                    sb.AppendLine($"--- Note: {(key != null ? _encryptionService.Decrypt(card.NoteEncrypted!, card.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
                 // ===== NOTES =====
                 var notes = await _db.NoteData
+                    .Include(n => n.Folder)
                     .Where(n => n.UserId == userId)
                     .ToListAsync();
 
@@ -317,7 +407,7 @@ namespace PasswordManager.Infrastructure.Settings
                     sb.AppendLine($"--- Title: {note.Title}");
                     sb.AppendLine($"--- Folder: {note.Folder?.Name ?? "No folder"}");
                     sb.AppendLine($"--- Created at: {note.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Content: "); //TODO
+                    sb.AppendLine($"--- Content: {(key != null ? _encryptionService.Decrypt(note.NoteEncrypted!, note.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
@@ -400,8 +490,11 @@ namespace PasswordManager.Infrastructure.Settings
                 }
 
 
+                var key = _sessionEncryptionService.GetEncryptionKey(userId);
+
                 // ===== LOGIN DATA =====
                 var logins = await _db.LoginData
+                    .Include(l => l.Folder)
                     .Where(l => l.UserId == userId)
                     .ToListAsync();
 
@@ -418,10 +511,11 @@ namespace PasswordManager.Infrastructure.Settings
                     {
                         sb.AppendLine($"## {login.Title}");
                         sb.AppendLine($"- **Folder:** {login.Folder?.Name ?? "No folder"}");
-                        sb.AppendLine($"- **Login:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Login:** {(key != null ? _encryptionService.Decrypt(login.LoginEncrypted!, login.LoginIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Password:** {(key != null ? _encryptionService.Decrypt(login.PasswordEncrypted!, login.PasswordIV!, key) : "_unavailable_")}");
                         sb.AppendLine($"- **Web URL:** {login.WebURL ?? "No URL"}");
                         sb.AppendLine($"- **Created at:** {login.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Note:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Note:** {(key != null ? _encryptionService.Decrypt(login.NoteEncrypted!, login.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }
@@ -429,6 +523,7 @@ namespace PasswordManager.Infrastructure.Settings
 
                 // ===== CARDS =====
                 var cards = await _db.CardData
+                    .Include(c => c.Folder)
                     .Where(c => c.UserId == userId)
                     .ToListAsync();
 
@@ -444,13 +539,13 @@ namespace PasswordManager.Infrastructure.Settings
                     foreach (var card in cards)
                     {
                         sb.AppendLine($"## {card.Title}");
-                        sb.AppendLine($"- **Cardholder name:** {card.CardholderName ?? "_hidden_"}");
+                        sb.AppendLine($"- **Cardholder name:** {card.CardholderName ?? ""}");
                         sb.AppendLine($"- **Folder:** {card.Folder?.Name ?? "No folder"}");
-                        sb.AppendLine($"- **Card number:** _hidden_"); // TODO
-                        sb.AppendLine($"- **Expire month:** _hidden_"); // TODO
-                        sb.AppendLine($"- **Expire year:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Card number:** {(key != null ? _encryptionService.Decrypt(card.CardNumberEncrypted!, card.CardNumberIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Expire month:** {(key != null ? _encryptionService.Decrypt(card.ExpireMonthEncrypted!, card.ExpireMonthIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Expire year:** {(key != null ? _encryptionService.Decrypt(card.ExpireYearEncrypted!, card.ExpireYearIV!, key) : "_unavailable_")}");
                         sb.AppendLine($"- **Created at:** {card.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Note:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Note:** {(key != null ? _encryptionService.Decrypt(card.NoteEncrypted!, card.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }
@@ -458,6 +553,7 @@ namespace PasswordManager.Infrastructure.Settings
 
                 // ===== NOTES =====
                 var notes = await _db.NoteData
+                    .Include(n => n.Folder)
                     .Where(n => n.UserId == userId)
                     .ToListAsync();
 
@@ -475,7 +571,7 @@ namespace PasswordManager.Infrastructure.Settings
                         sb.AppendLine($"## {note.Title}");
                         sb.AppendLine($"- **Folder:** {note.Folder?.Name ?? "No folder"}");
                         sb.AppendLine($"- **Created at:** {note.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Content:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Content:** {(key != null ? _encryptionService.Decrypt(note.NoteEncrypted!, note.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }
