@@ -39,6 +39,7 @@ services:
 
 volumes:
   authvault-data:
+    name: authvault-data
 
 networks:
   authvault-net:

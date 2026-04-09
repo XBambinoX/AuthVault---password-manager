@@ -113,6 +113,7 @@ public class ConfigurationService
 
             volumes:
               authvault-data:
+                name: authvault-data
 
             networks:
               authvault-net:
