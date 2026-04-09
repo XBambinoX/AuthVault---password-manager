@@ -2,7 +2,6 @@
 using PasswordManager.Application.Account.ForgotPassword;
 using PasswordManager.Data;
 using PasswordManager.Domain.Entities;
-using PasswordManager.Infrastructure.Email;
 using PasswordManager.Infrastructure.Security;
 
 namespace PasswordManager.Infrastructure.ForgotPassword
@@ -10,14 +9,12 @@ namespace PasswordManager.Infrastructure.ForgotPassword
     public class PasswordResetService : IResetPasswordService
     {
         private readonly AppDbContext _db;
-        private readonly EmailService _emailService;
         private readonly IEncryptionService _encryptionService;
         private readonly TokenService _tokenService;
 
-        public PasswordResetService(AppDbContext db, EmailService emailService, IEncryptionService encryptionService,TokenService tokenService)
+        public PasswordResetService(AppDbContext db, IEncryptionService encryptionService,TokenService tokenService)
         {
             _db = db;
-            _emailService = emailService;
             _encryptionService = encryptionService;
             _tokenService = tokenService;
         }

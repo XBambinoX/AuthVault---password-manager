@@ -56,6 +56,7 @@ namespace PasswordManager.Controllers
                 return View("IndexRegister", model);
             }
 
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
             var result = await _registerService.RegisterUserAsync(new RegisterUserDto
                 {
                     Login = model.Name!,

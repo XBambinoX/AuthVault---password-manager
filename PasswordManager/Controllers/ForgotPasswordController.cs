@@ -28,6 +28,7 @@ namespace PasswordManager.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
             await _resetPasswordService.CreateResetTokenAsync(new ForgotPasswordDto
             {
                 Email = model.Email,

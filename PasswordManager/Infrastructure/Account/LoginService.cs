@@ -5,7 +5,6 @@ using PasswordManager.Application.Security;
 using PasswordManager.Data;
 using PasswordManager.Domain.Entities;
 using PasswordManager.Domain.Enums;
-using PasswordManager.Infrastructure.Email;
 using PasswordManager.Infrastructure.Security;
 
 
@@ -16,17 +15,14 @@ namespace PasswordManager.Infrastructure.Login
         private readonly AppDbContext _db;
         private readonly IEncryptionService _encryptionService;
         private readonly ISessionEncryptionService _sessionEncryptionService;
-        private readonly EmailService _emailService;
         private readonly TokenService _tokenService;
 
         public LoginService(AppDbContext db, 
             IEncryptionService encryptionService, 
             ISessionEncryptionService sessionEncryptionService, 
-            EmailService emailService, 
             TokenService tokenService)
         {
             _db = db;
-            _emailService = emailService;
             _encryptionService = encryptionService;
             _sessionEncryptionService = sessionEncryptionService;
             _tokenService = tokenService;

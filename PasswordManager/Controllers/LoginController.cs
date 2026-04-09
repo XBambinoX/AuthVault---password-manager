@@ -93,7 +93,8 @@ namespace PasswordManager.Controllers
                 {
                     Email = model.Email!,
                     Password = model.Password!
-                });
+                }
+            );
 
             if (!result.Success)
             {
