@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build ${{ matrix.rid }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -47,14 +47,13 @@ jobs:
 
       - name: Rename binary
         run: |
-          src="./dist/${{ matrix.rid }}/authvault"
-          # Windows output has .exe
           if [ "${{ matrix.rid }}" = "win-x64" ]; then
-            src="./dist/${{ matrix.rid }}/authvault.exe"
+            cp "./dist/${{ matrix.rid }}/authvault.exe" "./${{ matrix.asset }}"
+          else
+            cp "./dist/${{ matrix.rid }}/authvault" "./${{ matrix.asset }}"
           fi
-          cp "$src" "./${{ matrix.asset }}"
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ matrix.asset }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.ref_name }} ./${{ matrix.asset }}
