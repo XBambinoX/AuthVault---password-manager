@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PasswordManager.Application.Security;
 using PasswordManager.Data;
 using PasswordManager.Domain.Entities;
 using PasswordManager.Infrastructure.Security;
@@ -6,16 +7,18 @@ using System.Text;
 
 namespace PasswordManager.Infrastructure.Settings
 {
-   
-    public class SettingsService 
+
+    public class SettingsService
     {
         private readonly AppDbContext _db;
         private readonly IEncryptionService _encryptionService;
+        private readonly ISessionEncryptionService _sessionEncryptionService;
         private readonly TokenService _tokenService;
-        public SettingsService(AppDbContext db, IEncryptionService encryptionService,TokenService tokenService) 
+        public SettingsService(AppDbContext db, IEncryptionService encryptionService, ISessionEncryptionService sessionEncryptionService, TokenService tokenService)
         {
             _db = db;
             _encryptionService = encryptionService;
+            _sessionEncryptionService = sessionEncryptionService;
             _tokenService = tokenService;
         }
 
@@ -336,8 +339,11 @@ namespace PasswordManager.Infrastructure.Settings
 
                 sb.AppendLine();
 
+                var key = _sessionEncryptionService.GetEncryptionKey(userId);
+
                 // ===== LOGIN DATA =====
                 var logins = await _db.LoginData
+                    .Include(l => l.Folder)
                     .Where(l => l.UserId == userId)
                     .ToListAsync();
 
@@ -351,15 +357,17 @@ namespace PasswordManager.Infrastructure.Settings
                 {
                     sb.AppendLine($"--- Title: {login.Title}");
                     sb.AppendLine($"--- Folder: {login.Folder?.Name ?? "No folder"}");
-                    sb.AppendLine($"--- Login: "); //TODO
+                    sb.AppendLine($"--- Login: {(key != null ? _encryptionService.Decrypt(login.LoginEncrypted!, login.LoginIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Password: {(key != null ? _encryptionService.Decrypt(login.PasswordEncrypted!, login.PasswordIV!, key) : "[unavailable]")}");
                     sb.AppendLine($"--- WEB URL: {login.WebURL ?? "No URL"}");
                     sb.AppendLine($"--- Created at: {login.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Note: "); //TODO
+                    sb.AppendLine($"--- Note: {(key != null ? _encryptionService.Decrypt(login.NoteEncrypted!, login.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
                 // ===== CARDS =====
                 var cards = await _db.CardData
+                    .Include(c => c.Folder)
                     .Where(c => c.UserId == userId)
                     .ToListAsync();
 
@@ -374,16 +382,17 @@ namespace PasswordManager.Infrastructure.Settings
                     sb.AppendLine($"--- Title: {card.Title}");
                     sb.AppendLine($"--- Cardholder name: {card.CardholderName}");
                     sb.AppendLine($"--- Folder: {card.Folder?.Name ?? "No folder"}");
-                    sb.AppendLine($"--- Card number: "); //TODO
-                    sb.AppendLine($"--- Expire month: "); //TODO
-                    sb.AppendLine($"--- Expire year: "); //TODO
+                    sb.AppendLine($"--- Card number: {(key != null ? _encryptionService.Decrypt(card.CardNumberEncrypted!, card.CardNumberIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Expire month: {(key != null ? _encryptionService.Decrypt(card.ExpireMonthEncrypted!, card.ExpireMonthIV!, key) : "[unavailable]")}");
+                    sb.AppendLine($"--- Expire year: {(key != null ? _encryptionService.Decrypt(card.ExpireYearEncrypted!, card.ExpireYearIV!, key) : "[unavailable]")}");
                     sb.AppendLine($"--- Created at: {card.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Note: "); //TODO
+                    sb.AppendLine($"--- Note: {(key != null ? _encryptionService.Decrypt(card.NoteEncrypted!, card.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
                 // ===== NOTES =====
                 var notes = await _db.NoteData
+                    .Include(n => n.Folder)
                     .Where(n => n.UserId == userId)
                     .ToListAsync();
 
@@ -398,7 +407,7 @@ namespace PasswordManager.Infrastructure.Settings
                     sb.AppendLine($"--- Title: {note.Title}");
                     sb.AppendLine($"--- Folder: {note.Folder?.Name ?? "No folder"}");
                     sb.AppendLine($"--- Created at: {note.CreatedAt:yyyy-MM-dd}");
-                    sb.AppendLine($"--- Content: "); //TODO
+                    sb.AppendLine($"--- Content: {(key != null ? _encryptionService.Decrypt(note.NoteEncrypted!, note.NoteIV!, key) : "[unavailable]")}");
                     sb.AppendLine();
                 }
 
@@ -481,8 +490,11 @@ namespace PasswordManager.Infrastructure.Settings
                 }
 
 
+                var key = _sessionEncryptionService.GetEncryptionKey(userId);
+
                 // ===== LOGIN DATA =====
                 var logins = await _db.LoginData
+                    .Include(l => l.Folder)
                     .Where(l => l.UserId == userId)
                     .ToListAsync();
 
@@ -499,10 +511,11 @@ namespace PasswordManager.Infrastructure.Settings
                     {
                         sb.AppendLine($"## {login.Title}");
                         sb.AppendLine($"- **Folder:** {login.Folder?.Name ?? "No folder"}");
-                        sb.AppendLine($"- **Login:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Login:** {(key != null ? _encryptionService.Decrypt(login.LoginEncrypted!, login.LoginIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Password:** {(key != null ? _encryptionService.Decrypt(login.PasswordEncrypted!, login.PasswordIV!, key) : "_unavailable_")}");
                         sb.AppendLine($"- **Web URL:** {login.WebURL ?? "No URL"}");
                         sb.AppendLine($"- **Created at:** {login.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Note:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Note:** {(key != null ? _encryptionService.Decrypt(login.NoteEncrypted!, login.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }
@@ -510,6 +523,7 @@ namespace PasswordManager.Infrastructure.Settings
 
                 // ===== CARDS =====
                 var cards = await _db.CardData
+                    .Include(c => c.Folder)
                     .Where(c => c.UserId == userId)
                     .ToListAsync();
 
@@ -525,13 +539,13 @@ namespace PasswordManager.Infrastructure.Settings
                     foreach (var card in cards)
                     {
                         sb.AppendLine($"## {card.Title}");
-                        sb.AppendLine($"- **Cardholder name:** {card.CardholderName ?? "_hidden_"}");
+                        sb.AppendLine($"- **Cardholder name:** {card.CardholderName ?? ""}");
                         sb.AppendLine($"- **Folder:** {card.Folder?.Name ?? "No folder"}");
-                        sb.AppendLine($"- **Card number:** _hidden_"); // TODO
-                        sb.AppendLine($"- **Expire month:** _hidden_"); // TODO
-                        sb.AppendLine($"- **Expire year:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Card number:** {(key != null ? _encryptionService.Decrypt(card.CardNumberEncrypted!, card.CardNumberIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Expire month:** {(key != null ? _encryptionService.Decrypt(card.ExpireMonthEncrypted!, card.ExpireMonthIV!, key) : "_unavailable_")}");
+                        sb.AppendLine($"- **Expire year:** {(key != null ? _encryptionService.Decrypt(card.ExpireYearEncrypted!, card.ExpireYearIV!, key) : "_unavailable_")}");
                         sb.AppendLine($"- **Created at:** {card.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Note:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Note:** {(key != null ? _encryptionService.Decrypt(card.NoteEncrypted!, card.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }
@@ -539,6 +553,7 @@ namespace PasswordManager.Infrastructure.Settings
 
                 // ===== NOTES =====
                 var notes = await _db.NoteData
+                    .Include(n => n.Folder)
                     .Where(n => n.UserId == userId)
                     .ToListAsync();
 
@@ -556,7 +571,7 @@ namespace PasswordManager.Infrastructure.Settings
                         sb.AppendLine($"## {note.Title}");
                         sb.AppendLine($"- **Folder:** {note.Folder?.Name ?? "No folder"}");
                         sb.AppendLine($"- **Created at:** {note.CreatedAt:yyyy-MM-dd}");
-                        sb.AppendLine($"- **Content:** _hidden_"); // TODO
+                        sb.AppendLine($"- **Content:** {(key != null ? _encryptionService.Decrypt(note.NoteEncrypted!, note.NoteIV!, key) : "_unavailable_")}");
                         sb.AppendLine();
                     }
                 }

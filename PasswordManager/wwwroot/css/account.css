@@ -40,20 +40,20 @@
     backdrop-filter: blur(10px);
 }
 
-    .back-link:hover {
-        background: rgba(52, 152, 219, 0.2);
-        border-color: rgba(52, 152, 219, 0.5);
-        transform: translateX(-4px);
-    }
+.back-link:hover {
+    background: rgba(52, 152, 219, 0.2);
+    border-color: rgba(52, 152, 219, 0.5);
+    transform: translateX(-4px);
+}
 
-    .back-link svg {
-        flex-shrink: 0;
-        transition: transform 0.3s;
-    }
+.back-link svg {
+    flex-shrink: 0;
+    transition: transform 0.3s;
+}
 
-    .back-link:hover svg {
-        transform: translateX(-2px);
-    }
+.back-link:hover svg {
+    transform: translateX(-2px);
+}
 
 /* ========================================
    LOGIN CONTAINER
@@ -67,73 +67,79 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
-    .login-container .logo {
-        position: relative;
-        text-align: center;
-        margin-bottom: 8px;
-    }
+.login-container .logo {
+    position: relative;
+    text-align: center;
+    margin-bottom: 8px;
+}
 
-    .login-container .logo-icon {
-        width: 155px;
-        height: 124px;
-        background: #3498db;
-        border-radius: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-    }
+.login-container .logo-icon {
+    width: 155px;
+    height: 124px;
+    background: #3498db;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    overflow: hidden;
+}
 
-        .login-container .logo-icon svg {
-            width: 110px;
-            height: 110px;
-            color: #ffffff;
-        }
+.login-container .logo-icon svg {
+    width: 110px;
+    height: 110px;
+    color: #ffffff;
+}
 
-    .login-container .logo-title {
-        position: absolute;
-        top: 26px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 46px;
-        font-weight: 600;
-        color: #ffffff;
-        padding: 4px 16px;
-        border-radius: 999px;
-        user-select: none;
-        -webkit-user-select: none;
-        -ms-user-select: none;
-    }
+.login-container .logo-title {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 155px;
+    height: 124px;
+    overflow: hidden;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 72px;
+    font-weight: 600;
+    color: #ffffff;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
 
-    .login-container .logo-svg {
-        width: 260px;
-    }
+.login-container .logo-svg {
+    width: 260px;
+}
 
-    .login-container .logo-text-outline {
-        fill: none;
-        stroke: #3498db;
-        stroke-width: 15px;
-        stroke-linejoin: round;
-        user-select: none;
-        -webkit-user-select: none;
-        -ms-user-select: none;
-    }
+.login-container .logo-text-outline {
+    fill: none;
+    stroke: #3498db;
+    stroke-width: 15px;
+    stroke-linejoin: round;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
 
-    .login-container .logo-text-fill {
-        fill: #ffffff;
-        user-select: none;
-        -webkit-user-select: none;
-        -ms-user-select: none;
-    }
+.login-container .logo-text-fill {
+    fill: #ffffff;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
 
-    .login-container .tagline {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #8b92a7;
-        font-size: 16px;
-        margin-bottom: 24px;
-    }
+.login-container .tagline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b92a7;
+    font-size: 16px;
+    margin-bottom: 24px;
+}
 
 /* ========================================
    TABS
@@ -162,14 +168,14 @@
     text-align: center;
 }
 
-    .tab.active {
-        background: #3498db;
-        color: #ffffff;
-    }
+.tab.active {
+    background: #3498db;
+    color: #ffffff;
+}
 
-    .tab:hover:not(.active) {
-        background: #2d3142;
-    }
+.tab:hover:not(.active) {
+    background: #2d3142;
+}
 
 /* ========================================
    FORM ELEMENTS
@@ -199,15 +205,15 @@ input {
     transition: all 0.2s;
 }
 
-    input:focus {
-        outline: none;
-        border-color: #3498db;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-    }
+input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
 
-    input::placeholder {
-        color: #5a6070;
-    }
+input::placeholder {
+    color: #5a6070;
+}
 
 /* ========================================
    PASSWORD TOGGLE
@@ -228,16 +234,16 @@ input {
     transition: all 0.2s;
 }
 
-    .toggle-password svg {
-        width: 20px;
-        height: 20px;
-        color: #8b92a7;
-        transition: color 0.2s;
-    }
+.toggle-password svg {
+    width: 20px;
+    height: 20px;
+    color: #8b92a7;
+    transition: color 0.2s;
+}
 
-    .toggle-password:hover svg {
-        color: #ffffff;
-    }
+.toggle-password:hover svg {
+    color: #ffffff;
+}
 
 /* ========================================
    CHECKBOX
@@ -253,18 +259,18 @@ input {
     margin-bottom: 2px;
 }
 
-    .checkbox input[type="checkbox"] {
-        width: auto;
-        margin-top: 0px;
-        margin-left: 6px;
-    }
+.checkbox input[type="checkbox"] {
+    width: auto;
+    margin-top: 0px;
+    margin-left: 6px;
+}
 
-    .checkbox label {
-        margin-top: 4px;
-        font-weight: 400;
-        color: #8b92a7;
-        cursor: pointer;
-    }
+.checkbox label {
+    margin-top: 4px;
+    font-weight: 400;
+    color: #8b92a7;
+    cursor: pointer;
+}
 
 /* ========================================
    BUTTONS
@@ -283,32 +289,32 @@ input {
     transition: all 0.3s;
 }
 
-    .submit-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
-    }
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+}
 
-    .submit-btn:active {
-        transform: translateY(0);
-    }
+.submit-btn:active {
+    transform: translateY(0);
+}
 
 .forgot-password {
     text-align: center;
     margin-top: 28px;
 }
 
-    .forgot-password a {
-        color: #3498db;
-        text-decoration: none;
-        font-size: 14px;
-        display: inline-flex;
-        align-items: center;
-        transition: all 0.2s;
-    }
+.forgot-password a {
+    color: #3498db;
+    text-decoration: none;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.2s;
+}
 
-        .forgot-password a:hover {
-            text-decoration: underline;
-        }
+.forgot-password a:hover {
+    text-decoration: underline;
+}
 
 .verify-password {
     text-align: center;
@@ -327,14 +333,14 @@ input {
     transition: all 0.3s;
 }
 
-    .resend-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(119, 119, 207, 0.40);
-    }
+.resend-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(119, 119, 207, 0.4);
+}
 
-    .resend-btn:active {
-        transform: translateY(0);
-    }
+.resend-btn:active {
+    transform: translateY(0);
+}
 
 /* ========================================
    VALIDATION & MESSAGES
@@ -359,15 +365,15 @@ input {
     gap: 10px;
 }
 
-    .success-message svg {
-        flex-shrink: 0;
-        width: 20px;
-        height: 20px;
-    }
+.success-message svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
 
-    .success-message span {
-        flex: 1;
-    }
+.success-message span {
+    flex: 1;
+}
 
 .info-box {
     background: rgba(52, 152, 219, 0.1);
@@ -383,17 +389,17 @@ input {
     line-height: 1.5;
 }
 
-    .info-box svg {
-        flex-shrink: 0;
-        width: 20px;
-        height: 20px;
-        margin-top: 2px;
-    }
+.info-box svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+}
 
-    .info-box p {
-        flex: 1;
-        margin: 0;
-    }
+.info-box p {
+    flex: 1;
+    margin: 0;
+}
 
 /* ========================================
    ERROR PAGES
@@ -415,11 +421,11 @@ input {
     border: 3px solid rgba(231, 76, 60, 0.3);
 }
 
-    .error-icon svg {
-        color: #e74c3c;
-        width: 80px;
-        height: 80px;
-    }
+.error-icon svg {
+    color: #e74c3c;
+    width: 80px;
+    height: 80px;
+}
 
 .error-title {
     color: #ffffff;
@@ -436,27 +442,27 @@ input {
     margin-bottom: 32px;
 }
 
-    .error-description p {
-        margin: 8px 0;
-    }
+.error-description p {
+    margin: 8px 0;
+}
 
-        .error-description p:first-child {
-            font-size: 16px;
-            color: #c4c9d4;
-        }
+.error-description p:first-child {
+    font-size: 16px;
+    color: #c4c9d4;
+}
 
 .error-actions {
     margin-bottom: 20px;
 }
 
-    .error-actions .submit-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: auto;
-        padding: 14px 24px;
-        text-decoration: none;
-    }
+.error-actions .submit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding: 14px 24px;
+    text-decoration: none;
+}
 
 /* ========================================
    RESPONSIVE DESIGN
@@ -472,29 +478,34 @@ input {
         font-size: 13px;
     }
 
-        .back-link svg {
-            width: 18px;
-            height: 18px;
-        }
+    .back-link svg {
+        width: 18px;
+        height: 18px;
+    }
 
     .login-container {
         padding: 32px 24px;
         margin: 16px;
     }
 
-        .login-container .logo-icon {
-            width: 130px;
-            height: 104px;
-        }
+    .login-container .logo-icon {
+        width: 130px;
+        height: 104px;
+    }
 
-            .login-container .logo-icon svg {
-                width: 90px;
-                height: 90px;
-            }
+    .login-container .logo-icon svg {
+        width: 90px;
+        height: 90px;
+    }
 
-        .login-container .logo-svg {
-            width: 220px;
-        }
+    .login-container .logo-title {
+        width: 130px;
+        height: 104px;
+    }
+
+    .login-container .logo-svg {
+        width: 220px;
+    }
 }
 
 @media (max-width: 480px) {

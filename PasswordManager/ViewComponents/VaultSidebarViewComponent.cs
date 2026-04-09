@@ -15,7 +15,8 @@ namespace PasswordManager.ViewComponents
 
         public async Task<IViewComponentResult> InvokeAsync()
         {
-            var userId = int.Parse(HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!int.TryParse(HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                throw new InvalidOperationException("Invalid user identifier in claims.");
 
             var sidebarModel = await _vaultService.GetSidebarDataAsync(userId);
 

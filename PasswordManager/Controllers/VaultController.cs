@@ -263,7 +263,7 @@ namespace PasswordManager.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userId = GetUserID();
 
             var dto = new FolderDto
             {
@@ -297,7 +297,9 @@ namespace PasswordManager.Controllers
 
         private int GetUserID()
         {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                throw new InvalidOperationException("Invalid user identifier in claims.");
+            return userId;
         }
     }
 }

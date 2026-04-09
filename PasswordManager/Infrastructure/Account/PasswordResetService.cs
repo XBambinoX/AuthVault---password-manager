@@ -30,7 +30,7 @@ namespace PasswordManager.Infrastructure.ForgotPassword
                 return;
             }
 
-            var token = await _tokenService.GenerateUniqueResetTokenAsync(_db.PasswordResetTokens, t => t.Token);
+            var token = await _tokenService.GenerateUniqueResetTokenAsync(_db.PasswordResetTokens, t => t.Token!);
             var expiresAt = DateTime.UtcNow.AddMinutes(30);
 
             var existingToken = await _db.PasswordResetTokens.FirstOrDefaultAsync(t => t.UserId == user.Id);
@@ -54,7 +54,7 @@ namespace PasswordManager.Infrastructure.ForgotPassword
                 _db.PasswordResetTokens.Add(resetToken);
             }
 
-            await _tokenService.SendTokenToEmailAsync(user.Login, dto.Email, 30, $"https://localhost:7108/Account/ForgotPassword/ResetPassword?token={token}");
+            await _tokenService.SendTokenToEmailAsync(user.Login, dto.Email, 30, $"{dto.BaseUrl}/Account/ForgotPassword/ResetPassword?token={token}");
             await _db.SaveChangesAsync();
         }
 
@@ -92,20 +92,38 @@ namespace PasswordManager.Infrastructure.ForgotPassword
             if (resetToken == null)
                 return false;
 
-            resetToken.Token = null;
-            resetToken.UsedAt = DateTime.UtcNow;
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                int userId = resetToken.User.Id;
 
-            byte[] authSalt = _encryptionService.GenerateSalt();
-            byte[] encryptionSalt = _encryptionService.GenerateSalt();
-            byte[] authHash = _encryptionService.DeriveAuthHash(newPassword, authSalt);
+                // Vault data is encrypted with the old key derived from the old password.
+                // Since the old password is unknown during a reset, the data is
+                // permanently inaccessible — clear it to avoid leaving corrupted state.
+                await _db.LoginData.Where(x => x.UserId == userId).ExecuteDeleteAsync();
+                await _db.CardData.Where(x => x.UserId == userId).ExecuteDeleteAsync();
+                await _db.NoteData.Where(x => x.UserId == userId).ExecuteDeleteAsync();
 
-            resetToken.User.AuthSalt = authSalt;
-            resetToken.User.EncryptionSalt = encryptionSalt;
-            resetToken.User.AuthHash = authHash;
+                resetToken.Token = null;
+                resetToken.UsedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync();
+                byte[] authSalt = _encryptionService.GenerateSalt();
+                byte[] encryptionSalt = _encryptionService.GenerateSalt();
+                byte[] authHash = _encryptionService.DeriveAuthHash(newPassword, authSalt);
 
-            return true;
+                resetToken.User.AuthSalt = authSalt;
+                resetToken.User.EncryptionSalt = encryptionSalt;
+                resetToken.User.AuthHash = authHash;
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                return false;
+            }
         }
     }
 }

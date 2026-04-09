@@ -132,7 +132,9 @@ namespace PasswordManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                return RedirectToAction("GetLogin");
+
             await _loginService.DeleteEncryptionKey(userId);
             await _authService.SignOutAsync(HttpContext);
             return RedirectToAction("Login", "Account");

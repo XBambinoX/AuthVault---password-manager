@@ -60,7 +60,8 @@ namespace PasswordManager.Controllers
                 {
                     Login = model.Name!,
                     Email = model.Email!,
-                    Password = model.Password!
+                    Password = model.Password!,
+                    BaseUrl = $"{Request.Scheme}://{Request.Host}"
                 }
             );
 

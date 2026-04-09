@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PasswordManager.Application.Security;
 using PasswordManager.Application.Settings;
@@ -12,6 +13,7 @@ using System.Text;
 
 namespace PasswordManager.Controllers
 {
+    [Authorize]
     [Route("Vault")]
     public class SettingsController : Controller
     {
@@ -30,6 +32,9 @@ namespace PasswordManager.Controllers
         {
             var userId = GetUserID();
             var model = await _vaultSettingsService.GetSettingsDataAsync(userId);
+
+            if (model == null)
+                return RedirectToAction("GetLogin", "Login");
 
             return View("Settings", model);
         }
@@ -82,6 +87,7 @@ namespace PasswordManager.Controllers
         }
 
         [HttpPost("Settings/EmailChange")]
+        [ValidateAntiForgeryToken]
         public IActionResult PostFAEmailChange()
         {
             return RedirectToAction("Get2FAEmail");
@@ -107,10 +113,10 @@ namespace PasswordManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Toggle2FA([FromBody] Toggle2FADto dto)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userId = GetUserID();
             await _settingsService.Set2FAStatement(userId, dto.IsEnabled);
 
-            return RedirectToAction("GetSettings");
+            return Ok(new { success = true });
         }
         #endregion
 
@@ -198,7 +204,7 @@ namespace PasswordManager.Controllers
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return RedirectToAction("Register", "Account");
             }
-            return View("Vault","Home");
+            return RedirectToAction("Home", "Vault");
         }
         #endregion
 
@@ -241,7 +247,9 @@ namespace PasswordManager.Controllers
 
         private int GetUserID()
         {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                throw new InvalidOperationException("Invalid user identifier in claims.");
+            return userId;
         }
     }
 }

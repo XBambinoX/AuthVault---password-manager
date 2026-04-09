@@ -44,9 +44,16 @@ namespace PasswordManager.Infrastructure.Vault
                     break;
 
                 case "FolderId":
-                    loginItem.FolderId = string.IsNullOrEmpty(fieldValue)
-                        ? (int?)null
-                        : Convert.ToInt32(fieldValue);
+                    if (string.IsNullOrEmpty(fieldValue))
+                    {
+                        loginItem.FolderId = null;
+                    }
+                    else if (int.TryParse(fieldValue, out int loginFolderId))
+                    {
+                        bool loginFolderOwned = await _db.Folders.AnyAsync(f => f.Id == loginFolderId && f.UserId == userId);
+                        if (loginFolderOwned)
+                            loginItem.FolderId = loginFolderId;
+                    }
                     break;
 
                 case "Login":
@@ -105,9 +112,16 @@ namespace PasswordManager.Infrastructure.Vault
                     break;
 
                 case "FolderId":
-                    cardItem.FolderId = string.IsNullOrEmpty(fieldValue)
-                        ? (int?)null
-                        : Convert.ToInt32(fieldValue);
+                    if (string.IsNullOrEmpty(fieldValue))
+                    {
+                        cardItem.FolderId = null;
+                    }
+                    else if (int.TryParse(fieldValue, out int cardFolderId))
+                    {
+                        bool cardFolderOwned = await _db.Folders.AnyAsync(f => f.Id == cardFolderId && f.UserId == userId);
+                        if (cardFolderOwned)
+                            cardItem.FolderId = cardFolderId;
+                    }
                     break;
 
                 case "CardNumber":
@@ -172,9 +186,16 @@ namespace PasswordManager.Infrastructure.Vault
                     break;
 
                 case "FolderId":
-                    noteItem.FolderId = string.IsNullOrEmpty(fieldValue)
-                        ? (int?)null
-                        : Convert.ToInt32(fieldValue);
+                    if (string.IsNullOrEmpty(fieldValue))
+                    {
+                        noteItem.FolderId = null;
+                    }
+                    else if (int.TryParse(fieldValue, out int noteFolderId))
+                    {
+                        bool noteFolderOwned = await _db.Folders.AnyAsync(f => f.Id == noteFolderId && f.UserId == userId);
+                        if (noteFolderOwned)
+                            noteItem.FolderId = noteFolderId;
+                    }
                     break;
 
                 case "Content":

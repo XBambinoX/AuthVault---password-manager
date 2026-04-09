@@ -71,26 +71,29 @@ namespace PasswordManager.Infrastructure.Vault
             };
         }
 
-        public async Task<VaultSettingsViewModel> GetSettingsDataAsync(int userId)
+        public async Task<VaultSettingsViewModel?> GetSettingsDataAsync(int userId)
         {
-            var email = await _db.Users
-                .Where(u => userId == u.Id)
-                .Select(u => u.Email)
+            var dbUser = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.Email, u.CreatedAt })
                 .FirstOrDefaultAsync();
-            var accountCreatedAt = (await _db.Users.FindAsync(userId))!.CreatedAt;
-            var user = await _db.TwoFactorAuthentications
-                .FirstOrDefaultAsync(u => userId == u.UserId);
 
-            var model = new VaultSettingsViewModel
+            if (dbUser == null)
+                return null;
+
+            var twoFa = await _db.TwoFactorAuthentications
+                .Include(u => u.User)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            return new VaultSettingsViewModel
             {
                 Sidebar = await GetSidebarDataAsync(userId),
-                Email = email!,
-                FAEmail = (user == null) ? null : user.Email,
-                Is2FAEnabled = (user == null) ? false : user.IsEnabled,
-                accountCreatedOn = accountCreatedAt.ToString("MMMM dd, yyyy"),
-                PasswordLastChangeAt = (user == null) ? null : user.User.PasswordLastChangedAt
+                Email = dbUser.Email!,
+                FAEmail = twoFa?.Email,
+                Is2FAEnabled = twoFa?.IsEnabled ?? false,
+                accountCreatedOn = dbUser.CreatedAt.ToString("MMMM dd, yyyy"),
+                PasswordLastChangeAt = twoFa?.User.PasswordLastChangedAt
             };
-            return model;
         }
 
         public async Task<FAuthenticationEmailViewModel> Get2FAEmailAsync(int userId)

@@ -30,7 +30,8 @@ namespace PasswordManager.Controllers
 
             await _resetPasswordService.CreateResetTokenAsync(new ForgotPasswordDto
             {
-                Email = model.Email
+                Email = model.Email,
+                BaseUrl = $"{Request.Scheme}://{Request.Host}"
             });
 
             ModelState.AddModelError(nameof(model.Email), "If your email address has been confirmed and entered correctly, " +
